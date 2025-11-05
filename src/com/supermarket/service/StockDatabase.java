@@ -1,8 +1,9 @@
 package com.supermarket.service;
 
+// Make sure ALL these imports are present
 import com.supermarket.exception.ItemNotFoundException;
 import com.supermarket.model.OrderItem;
-import com.supermarket.model.StockItem;
+import com.supermarket.model.StockItem; // You are likely missing this
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileReader;
@@ -11,7 +12,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+ 
+
 /**
+ * 
  * Manages the supermarket's inventory.
  * This class demonstrates:
  * 1. COLLECTIONS & GENERICS (using HashMap)
@@ -179,4 +183,30 @@ private void logOrder(String originalQrData) {
         }
         System.out.println("---------------------------------\n");
     }
+
+    public StockItem findItem(String itemCode) {
+           return this.inventory.get(itemCode);    }
+
+   /**
+ * Updates the price for a given item and saves the change.
+ * @param itemCode The code of the item to update.
+ * @param newPrice The new sale price.
+ */
+  public void updateItemPrice(String itemCode, double newPrice) {
+    // 1. Find the item
+    StockItem item = findItem(itemCode);
+
+    // 2. Check if it exists
+    if (item != null) {
+        // 3. Update the price
+        item.setSalePrice(newPrice);
+        System.out.println("Price updated for " + item.getItemName() + ".");
+
+        // 4. Save the change back to the file
+        this.saveDatabaseToFile();
+
+    } else {
+        System.err.println("Error: Could not update price. Item not found.");
+    }
+}
 }
