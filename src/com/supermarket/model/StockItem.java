@@ -65,6 +65,18 @@ public class StockItem {
     // 5. Helper method for File Handling
     
     /**
+ * Updates the sale price of the item.
+ * @param newSalePrice The new price to set.
+ */
+public void setSalePrice(double newSalePrice) {
+    if (newSalePrice >= 0) {
+        this.salePrice = newSalePrice;
+    } else {
+        System.err.println("Error: Price cannot be negative.");
+    }
+}
+
+    /**
      * Formats the StockItem as a String for saving to a CSV file.
      * e.g., "IT-1001,Sunlight Soap 100g,50,175.00"
      * @return A CSV-formatted string.
