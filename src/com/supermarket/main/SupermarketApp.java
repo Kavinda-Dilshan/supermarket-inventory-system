@@ -48,8 +48,7 @@ public class SupermarketApp {
                         System.err.println("No valid items were parsed from the input.");
                     } else {
                         // Call the database to update the stock
-                        database.updateStockFromOrder(parsedItems);
-                    }
+                            database.updateStockFromOrder(parsedItems, qrCodeData);                    }
                     break;
                     
                 case "2":

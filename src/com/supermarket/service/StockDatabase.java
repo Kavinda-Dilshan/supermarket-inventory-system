@@ -40,7 +40,7 @@ public class StockDatabase {
      * Updates the stock quantities based on a parsed list of OrderItems.
      * @param orderItems The list of items from the QR code.
      */
-    public void updateStockFromOrder(ArrayList<OrderItem> orderItems) {
+    public void updateStockFromOrder(ArrayList<OrderItem> orderItems, String originalQrData) {
         boolean stockUpdated = false;
 
         for (OrderItem orderItem : orderItems) {
@@ -68,10 +68,16 @@ public class StockDatabase {
         }
         
         // After updating all items, save the changes back to the file.
-        if (stockUpdated) {
-            this.saveDatabaseToFile();
-            System.out.println("Database file successfully updated.");
-        }
+        // After updating all items, save the changes back to the file.
+if (stockUpdated) {
+    this.saveDatabaseToFile();
+    System.out.println("Database file successfully updated.");
+
+    // --- NEW CODE ---
+    // Log the original order that was just processed
+    logOrder(originalQrData); 
+    // --- END NEW CODE ---
+}
     }
 
     /**
@@ -127,6 +133,29 @@ public class StockDatabase {
             e.printStackTrace();
         }
     }
+    
+    /**
+ * Appends a record of a processed order to a log file.
+ * This is part of the new "order-logging" feature.
+ * @param originalQrData The raw QR string that was processed.
+ */
+private void logOrder(String originalQrData) {
+    // Use 'true' in FileWriter to enable "append" mode
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter("order_log.csv", true))) {
+
+        // Create a simple timestamp
+        String timestamp = java.time.LocalDateTime.now().toString();
+
+        // Write the log line
+        writer.write(timestamp + "," + originalQrData);
+        writer.newLine();
+
+    } catch (IOException e) {
+        System.err.println("Warning: Could not write to order_log.csv");
+        e.printStackTrace();
+    }
+}
+    
 
     /**
      * A helper method to print a report of the current stock levels.
