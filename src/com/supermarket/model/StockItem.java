@@ -1,5 +1,8 @@
 package com.supermarket.model;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
 /**
  * Represents a single item in the supermarket's inventory (our "database").
  * This class demonstrates ENCAPSULATION.
@@ -10,7 +13,9 @@ public class StockItem {
     private String itemCode;
     private String itemName;
     private int currentQuantityInStock;
-    private double salePrice; // The price we sell it for
+    private double salePrice;
+    private String lastUpdated; // The new field for the timestamp
+    private boolean hasBeenModified = false; // To track session changes
 
     // 2. Constructor (to create new objects)
     public StockItem(String itemCode, String itemName, int initialQuantity, double salePrice) {
@@ -18,6 +23,16 @@ public class StockItem {
         this.itemName = itemName;
         this.currentQuantityInStock = initialQuantity;
         this.salePrice = salePrice;
+        this.lastUpdated = "N/A"; // Default value for new items
+    }
+
+    // Constructor used when loading from file (includes timestamp)
+    public StockItem(String itemCode, String itemName, int initialQuantity, double salePrice, String lastUpdated) {
+        this.itemCode = itemCode;
+        this.itemName = itemName;
+        this.currentQuantityInStock = initialQuantity;
+        this.salePrice = salePrice;
+        this.lastUpdated = lastUpdated;
     }
 
     // 3. "Getter" methods (to read data)
@@ -36,7 +51,15 @@ public class StockItem {
     public double getSalePrice() {
         return salePrice;
     }
-    
+
+    public String getLastUpdated() {
+        return lastUpdated;
+    }
+
+    public boolean hasBeenModified() {
+        return hasBeenModified;
+    }
+
     // 4. "Setter" / Mutator methods (to safely change data)
 
     /**
@@ -46,6 +69,8 @@ public class StockItem {
     public void addStock(int quantityToAdd) {
         if (quantityToAdd > 0) {
             this.currentQuantityInStock += quantityToAdd;
+            this.hasBeenModified = true;
+            updateTimestamp(); // Update time automatically
         }
     }
 
@@ -57,32 +82,40 @@ public class StockItem {
     public boolean removeStock(int quantityToRemove) {
         if (quantityToRemove > 0 && quantityToRemove <= this.currentQuantityInStock) {
             this.currentQuantityInStock -= quantityToRemove;
-            return true; // Sale was successful
+            this.hasBeenModified = true;
+            updateTimestamp(); // Update time automatically
+            return true; 
         }
-        return false; // Not enough stock
+        return false; 
+    }
+
+    /**
+     * Updates the sale price of the item.
+     * @param newSalePrice The new price to set.
+     */
+    public void setSalePrice(double newSalePrice) {
+        if (newSalePrice >= 0) {
+            this.salePrice = newSalePrice;
+            this.hasBeenModified = true;
+            updateTimestamp(); // Update time automatically
+        } else {
+            System.err.println("Error: Price cannot be negative.");
+        }
+    }
+
+    // Helper to set the lastUpdated field to the current time.
+    private void updateTimestamp() {
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        this.lastUpdated = LocalDateTime.now().format(dtf);
     }
 
     // 5. Helper method for File Handling
-    
-    /**
- * Updates the sale price of the item.
- * @param newSalePrice The new price to set.
- */
-public void setSalePrice(double newSalePrice) {
-    if (newSalePrice >= 0) {
-        this.salePrice = newSalePrice;
-    } else {
-        System.err.println("Error: Price cannot be negative.");
-    }
-}
-
     /**
      * Formats the StockItem as a String for saving to a CSV file.
-     * e.g., "IT-1001,Sunlight Soap 100g,50,175.00"
-     * @return A CSV-formatted string.
+      A CSV-formatted string.
      */
     public String toFileString() {
-        // We use a comma (,) as the separator
-        return itemCode + "," + itemName + "," + currentQuantityInStock + "," + salePrice;
+        // Appends the timestamp as the 5th column
+        return itemCode + "," + itemName + "," + currentQuantityInStock + "," + salePrice + "," + lastUpdated;
     }
 }
