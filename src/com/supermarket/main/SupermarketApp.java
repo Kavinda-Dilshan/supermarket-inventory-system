@@ -1,27 +1,58 @@
 package com.supermarket.main;
 
-import com.supermarket.model.StockItem; // Import the StockItem model
+import com.supermarket.model.StockItem;
+import com.supermarket.service.LoginManager; // Required for authentication
 import com.supermarket.service.OrderParser;
 import com.supermarket.service.StockDatabase;
 import java.util.Scanner;
 
 /**
  * The main application class that runs the Supermarket Inventory System.
- * This class provides the console-based user interface (UI).
+ * This class provides the console-based user interface (UI) and handles login flow.
  */
 public class SupermarketApp {
 
     public static void main(String[] args) {
 
-        // 1. Initialize all the necessary objects
+        // ---------------------------------------------------------
+        // STEP 1: INITIALIZE OBJECTS FIRST (Before using them!)
+        // ---------------------------------------------------------
         Scanner scanner = new Scanner(System.in);
         OrderParser parser = new OrderParser();
-        StockDatabase database = new StockDatabase(); // This will auto-load "inventory.csv"
+        LoginManager loginManager = new LoginManager(); 
+        
+        // Database object is declared here but initialized later
+        StockDatabase database = null; 
 
-        System.out.println("Welcome to the Supermarket Inventory Management System");
+        System.out.println("====================================================");
+        System.out.println("   SUPERMARKET INVENTORY SYSTEM - LOGIN REQUIRED    ");
         System.out.println("====================================================");
 
-        // 2. Start the main application loop
+        // ---------------------------------------------------------
+        // STEP 2: LOGIN LOOP (Now scanner and loginManager exist)
+        // ---------------------------------------------------------
+        boolean isLoggedIn = false;
+        while (!isLoggedIn) {
+            System.out.print("\nEnter Username: ");
+            String username = scanner.nextLine(); // Now scanner is valid!
+            
+            System.out.print("Enter Password: ");
+            String password = scanner.nextLine();
+
+            // Call the authenticate method
+            if (loginManager.authenticate(username, password)) { // Now loginManager is valid!
+                System.out.println("\n[SUCCESS] Login successful! Welcome, " + username + ".");
+                isLoggedIn = true;
+            } else {
+                System.out.println("\n[ERROR] Invalid username or password. Please try again.");
+            }
+        }
+        
+        // ---------------------------------------------------------
+        // STEP 3: LOAD DATABASE & START MAIN APP
+        // ---------------------------------------------------------
+        database = new StockDatabase(); // Only load data if login succeeds
+
         boolean isRunning = true;
         while (isRunning) {
             // Display the menu
@@ -32,13 +63,10 @@ public class SupermarketApp {
             System.out.println("  4. Exit");
             System.out.print("Enter your choice (1-4): ");
 
-            // Read the user's choice
             String choice = scanner.nextLine();
 
-            // 3. Handle the user's choice
             switch (choice) {
                 case "1":
-                    // --- Scan New Order ---
                     System.out.println("\n--- Update Stock ---");
                     System.out.print("Please scan the QR code (paste the data string and press Enter): \n> ");
                     String qrCodeData = scanner.nextLine();
@@ -48,18 +76,15 @@ public class SupermarketApp {
                     if (parsedItems.isEmpty()) {
                         System.err.println("No valid items were parsed from the input.");
                     } else {
-                        // We pass both the list AND the raw string for logging
                         database.updateStockFromOrder(parsedItems, qrCodeData); 
                     }
                     break;
 
                 case "2":
-                    // --- View Stock Report ---
                     database.printStockReport();
                     break;
 
                 case "3":
-                    // --- NEW FEATURE: View / Update Price ---
                     System.out.println("\n--- View / Update Item Price ---");
                     System.out.print("Enter the Item Code to look up: ");
                     String itemCode = scanner.nextLine();
@@ -69,7 +94,6 @@ public class SupermarketApp {
                     if (item == null) {
                         System.err.println("Error: Item code '" + itemCode + "' not found.");
                     } else {
-                        // Item was found, show details
                         System.out.println("Found item: " + item.getItemName());
                         System.out.println("Current sale price: " + item.getSalePrice());
 
@@ -90,18 +114,15 @@ public class SupermarketApp {
                     break;
 
                 case "4":
-                    // --- Exit ---
-                    isRunning = false; // This will cause the while loop to end
+                    isRunning = false; 
                     break;
 
                 default:
-                    // --- Invalid Choice ---
                     System.err.println("Invalid choice. Please enter 1, 2, 3, or 4.");
                     break;
             }
         }
 
-        // 4. Clean up and exit
         System.out.println("\nThank you for using the system. Goodbye!");
         scanner.close();
     }

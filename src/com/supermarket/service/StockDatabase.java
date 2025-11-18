@@ -18,6 +18,9 @@ import java.util.HashMap;
  * 2. FILE HANDLING (using BufferedReader/Writer)
  * 3. Throws our custom EXCEPTION
  */
+
+
+
 public class StockDatabase {
 
     // 1. COLLECTIONS: Use a HashMap for fast item lookup by itemCode.
@@ -166,10 +169,10 @@ public class StockDatabase {
     public void printStockReport() {
         System.out.println("\n--- CURRENT STOCK REPORT ---");
         System.out.println("(* = modified in this session)");
-        System.out.println("-------------------------------------------------------------------------");
+        System.out.println("------------------------------------------------------------------------------------------");
         // Adjusted width and added "Last Updated" column
-        System.out.printf("%-1s %-10s | %-20s | %-8s | %-20s\n", "", "Item Code", "Item Name", "Qty", "Last Updated");
-        System.out.println("-------------------------------------------------------------------------");
+        System.out.printf("%-1s %-10s | %-45s | %-10s | %-30s\n", "", "Item Code", "Item Name", "Qty", "Last Updated");
+        System.out.println("------------------------------------------------------------------------------------------");
 
         if (this.inventory.isEmpty()) {
             System.out.println("Inventory is empty.");
@@ -179,7 +182,7 @@ public class StockDatabase {
                 
                 String marker = item.hasBeenModified() ? "*" : " ";
 
-                System.out.printf("%-1s %-10s | %-20s | %-8d | %-20s\n", 
+                System.out.printf("%-1s %-10s | %-45s | %-10d | %-30s\n", 
                     marker,
                     item.getItemCode(), 
                     item.getItemName(), 
@@ -187,7 +190,7 @@ public class StockDatabase {
                     item.getLastUpdated());
             }
         }
-        System.out.println("-------------------------------------------------------------------------\n");
+        System.out.println("-------------------------------------------------------------------------------------------\n");
     }
 
     /**
