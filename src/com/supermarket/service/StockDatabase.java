@@ -1,27 +1,31 @@
+//src/com/supermarket/service/StockDatabase.java
 package com.supermarket.service;
 
-// Make sure ALL these imports are present
 import com.supermarket.exception.ItemNotFoundException;
 import com.supermarket.model.OrderItem;
-import com.supermarket.model.StockItem; // You are likely missing this
+import com.supermarket.model.StockItem;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 
- 
-
 /**
- * 
  * Manages the supermarket's inventory.
  * This class demonstrates:
  * 1. COLLECTIONS & GENERICS (using HashMap)
  * 2. FILE HANDLING (using BufferedReader/Writer)
  * 3. Throws our custom EXCEPTION
  */
+
+
+
 public class StockDatabase {
 
     // 1. COLLECTIONS: Use a HashMap for fast item lookup by itemCode.
@@ -29,6 +33,7 @@ public class StockDatabase {
     
     // 2. FILE HANDLING: Define the "database" file name.
     private final String DATABASE_FILE = "inventory.csv";
+    private final String LOG_FILE = "order_log.csv"; // File for logging orders
 
     /**
      * Constructor for the StockDatabase.
@@ -43,6 +48,7 @@ public class StockDatabase {
     /**
      * Updates the stock quantities based on a parsed list of OrderItems.
      * @param orderItems The list of items from the QR code.
+     * @param originalQrData The raw QR string for logging purposes.
      */
     public void updateStockFromOrder(ArrayList<OrderItem> orderItems, String originalQrData) {
         boolean stockUpdated = false;
@@ -67,21 +73,17 @@ public class StockDatabase {
             } catch (ItemNotFoundException e) {
                 // Catch our custom exception
                 System.err.println(e.getMessage());
-                // Continue to the next item
             }
         }
         
         // After updating all items, save the changes back to the file.
-        // After updating all items, save the changes back to the file.
-if (stockUpdated) {
-    this.saveDatabaseToFile();
-    System.out.println("Database file successfully updated.");
-
-    // --- NEW CODE ---
-    // Log the original order that was just processed
-    logOrder(originalQrData); 
-    // --- END NEW CODE ---
-}
+        if (stockUpdated) {
+            this.saveDatabaseToFile();
+            System.out.println("Database file successfully updated.");
+            
+            // Log the original order that was just processed
+            logOrder(originalQrData); 
+        }
     }
 
     /**
@@ -91,29 +93,149 @@ if (stockUpdated) {
     private void loadDatabaseFromFile() {
         System.out.println("Loading inventory from " + DATABASE_FILE + "...");
         
-        try (BufferedReader reader = new BufferedReader(new FileReader(DATABASE_FILE))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(",");
-                
-                if (parts.length == 4) {
-                    // Format: Code,Name,Quantity,Price
-                    String itemCode = parts[0];
-                    String itemName = parts[1];
-                    int quantity = Integer.parseInt(parts[2]);
-                    double price = Double.parseDouble(parts[3]);
-                    
-                    StockItem item = new StockItem(itemCode, itemName, quantity, price);
-                    this.inventory.put(itemCode, item); // Add to HashMap
+        // Determine the file object and print the absolute path for diagnostics
+        File file = new File(DATABASE_FILE);
+        System.out.println("Attempting to read file at: " + file.getAbsolutePath());
+
+        // If the file exists on the filesystem, read it. Otherwise try classpath resource as fallback.
+        if (file.exists() && file.isFile()) {
+            // Read from filesystem
+            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String[] parts = line.split(",");
+
+                    if (parts.length >= 4) {
+                        // Format: Code,Name,Quantity,Price,[Timestamp]
+                        String itemCode = parts[0];
+                        String itemName = parts[1];
+                        int quantity = Integer.parseInt(parts[2]);
+                        double price = Double.parseDouble(parts[3]);
+
+                        // Check if there is a 5th column (Timestamp)
+                        String timestamp = "N/A";
+                        if (parts.length == 5) {
+                            timestamp = parts[4];
+                        }
+
+                        StockItem item = new StockItem(itemCode, itemName, quantity, price, timestamp);
+                        this.inventory.put(itemCode, item); // Add to HashMap
+                    }
                 }
+                System.out.println("Inventory loaded. " + inventory.size() + " items found.");
+                return;
+            } catch (IOException e) {
+                System.err.println("Notice: Could not read " + DATABASE_FILE + " from filesystem despite existence.");
+                e.printStackTrace();
+                return;
+            } catch (NumberFormatException e) {
+                System.err.println("Error: Database file contains malformed data.");
+                return;
             }
-            System.out.println("Inventory loaded. " + inventory.size() + " items found.");
-        } catch (IOException e) {
-            // This happens if the file doesn't exist yet (e.g., first time run)
-            System.err.println("Notice: Could not read " + DATABASE_FILE + ". File may not exist yet.");
-        } catch (NumberFormatException e) {
-            System.err.println("Error: Database file contains malformed data.");
         }
+
+        // Not found at working directory - try searching upward through parent directories
+        try {
+            String userDir = System.getProperty("user.dir");
+            File dir = new File(userDir);
+            int maxLevels = 6; // search up to 6 parent levels
+            for (int i = 0; i < maxLevels && dir != null; i++) {
+                File candidate = new File(dir, DATABASE_FILE);
+                if (candidate.exists() && candidate.isFile()) {
+                    System.out.println("Found " + DATABASE_FILE + " at: " + candidate.getAbsolutePath());
+                    try (BufferedReader reader = new BufferedReader(new FileReader(candidate))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            String[] parts = line.split(",");
+                            if (parts.length >= 4) {
+                                String itemCode = parts[0];
+                                String itemName = parts[1];
+                                int quantity = Integer.parseInt(parts[2]);
+                                double price = Double.parseDouble(parts[3]);
+                                String timestamp = "N/A";
+                                if (parts.length == 5) {
+                                    timestamp = parts[4];
+                                }
+                                StockItem item = new StockItem(itemCode, itemName, quantity, price, timestamp);
+                                this.inventory.put(itemCode, item);
+                            }
+                        }
+                        System.out.println("Inventory loaded from: " + candidate.getAbsolutePath() + ". " + inventory.size() + " items found.");
+                        return;
+                    }
+                }
+
+                // Also check common project subfolder name (e.g., workspace contains a folder with that name)
+                File candidate2 = new File(dir, "SupermarketInventorySystem" + File.separator + DATABASE_FILE);
+                if (candidate2.exists() && candidate2.isFile()) {
+                    System.out.println("Found " + DATABASE_FILE + " at: " + candidate2.getAbsolutePath());
+                    try (BufferedReader reader = new BufferedReader(new FileReader(candidate2))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            String[] parts = line.split(",");
+                            if (parts.length >= 4) {
+                                String itemCode = parts[0];
+                                String itemName = parts[1];
+                                int quantity = Integer.parseInt(parts[2]);
+                                double price = Double.parseDouble(parts[3]);
+                                String timestamp = "N/A";
+                                if (parts.length == 5) {
+                                    timestamp = parts[4];
+                                }
+                                StockItem item = new StockItem(itemCode, itemName, quantity, price, timestamp);
+                                this.inventory.put(itemCode, item);
+                            }
+                        }
+                        System.out.println("Inventory loaded from: " + candidate2.getAbsolutePath() + ". " + inventory.size() + " items found.");
+                        return;
+                    }
+                }
+
+                dir = dir.getParentFile();
+            }
+        } catch (Exception e) {
+            // Non-fatal - continue to other fallbacks
+            System.err.println("Warning while searching for " + DATABASE_FILE + ": " + e.getMessage());
+        }
+
+        // Filesystem file not found - try classpath resource (useful when packaged in JAR)
+        InputStream is = getClass().getClassLoader().getResourceAsStream(DATABASE_FILE);
+        if (is != null) {
+            System.out.println("Found " + DATABASE_FILE + " on the classpath. Loading...");
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String[] parts = line.split(",");
+
+                    if (parts.length >= 4) {
+                        String itemCode = parts[0];
+                        String itemName = parts[1];
+                        int quantity = Integer.parseInt(parts[2]);
+                        double price = Double.parseDouble(parts[3]);
+                        String timestamp = "N/A";
+                        if (parts.length == 5) {
+                            timestamp = parts[4];
+                        }
+                        StockItem item = new StockItem(itemCode, itemName, quantity, price, timestamp);
+                        this.inventory.put(itemCode, item);
+                    }
+                }
+                System.out.println("Inventory loaded from classpath. " + inventory.size() + " items found.");
+                return;
+            } catch (IOException e) {
+                System.err.println("Notice: Could not read " + DATABASE_FILE + " from classpath resource.");
+                e.printStackTrace();
+                return;
+            } catch (NumberFormatException e) {
+                System.err.println("Error: Database resource contains malformed data.");
+                return;
+            }
+        }
+
+        // If we reach here, neither filesystem nor classpath had the file.
+        System.err.println("Notice: Could not read " + DATABASE_FILE + ". File may not exist yet.");
+        System.err.println("Checked path: " + file.getAbsolutePath());
+        System.err.println("Current working directory: " + System.getProperty("user.dir"));
     }
 
     /**
@@ -137,76 +259,93 @@ if (stockUpdated) {
             e.printStackTrace();
         }
     }
-    
+
     /**
- * Appends a record of a processed order to a log file.
- * This is part of the new "order-logging" feature.
- * @param originalQrData The raw QR string that was processed.
- */
-private void logOrder(String originalQrData) {
-    // Use 'true' in FileWriter to enable "append" mode
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter("order_log.csv", true))) {
-
-        // Create a simple timestamp
-        String timestamp = java.time.LocalDateTime.now().toString();
-
-        // Write the log line
-        writer.write(timestamp + "," + originalQrData);
-        writer.newLine();
-
-    } catch (IOException e) {
-        System.err.println("Warning: Could not write to order_log.csv");
-        e.printStackTrace();
+     * Appends a record of a processed order to a log file.
+     * This is part of the new "order-logging" feature.
+     * @param originalQrData The raw QR string that was processed.
+     */
+    private void logOrder(String originalQrData) {
+        // Use 'true' in FileWriter to enable "append" mode
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(LOG_FILE, true))) {
+            
+            // Create a simple timestamp
+            String timestamp = java.time.LocalDateTime.now().toString();
+            
+            // Write the log line
+            writer.write(timestamp + "," + originalQrData);
+            writer.newLine();
+            
+        } catch (IOException e) {
+            System.err.println("Warning: Could not write to " + LOG_FILE);
+            e.printStackTrace();
+        }
     }
-}
-    
 
     /**
      * A helper method to print a report of the current stock levels.
      */
     public void printStockReport() {
         System.out.println("\n--- CURRENT STOCK REPORT ---");
-        System.out.println("---------------------------------");
-        System.out.printf("%-10s | %-25s | %s\n", "Item Code", "Item Name", "Quantity");
-        System.out.println("---------------------------------");
+        System.out.println("(* = modified in this session)");
+        System.out.println("------------------------------------------------------------------------------------------");
+        // Adjusted width and added "Last Updated" column
+        System.out.printf("%-1s %-10s | %-45s | %-10s | %-30s\n", "", "Item Code", "Item Name", "Qty", "Last Updated");
+        System.out.println("------------------------------------------------------------------------------------------");
 
         if (this.inventory.isEmpty()) {
             System.out.println("Inventory is empty.");
         } else {
             // Loop through all items and print their details
             for (StockItem item : this.inventory.values()) {
-                System.out.printf("%-10s | %-25s | %d\n", 
+                
+                String marker = item.hasBeenModified() ? "*" : " ";
+
+                System.out.printf("%-1s %-10s | %-45s | %-10d | %-30s\n", 
+                    marker,
                     item.getItemCode(), 
                     item.getItemName(), 
-                    item.getCurrentQuantityInStock());
+                    item.getCurrentQuantityInStock(),
+                    item.getLastUpdated());
             }
         }
-        System.out.println("---------------------------------\n");
+        System.out.println("-------------------------------------------------------------------------------------------\n");
     }
 
+    /**
+     * Finds a single item in the inventory by its code.
+     * @param itemCode The code to search for.
+     * @return The StockItem object, or null if not found.
+     */
     public StockItem findItem(String itemCode) {
-           return this.inventory.get(itemCode);    }
-
-   /**
- * Updates the price for a given item and saves the change.
- * @param itemCode The code of the item to update.
- * @param newPrice The new sale price.
- */
-  public void updateItemPrice(String itemCode, double newPrice) {
-    // 1. Find the item
-    StockItem item = findItem(itemCode);
-
-    // 2. Check if it exists
-    if (item != null) {
-        // 3. Update the price
-        item.setSalePrice(newPrice);
-        System.out.println("Price updated for " + item.getItemName() + ".");
-
-        // 4. Save the change back to the file
-        this.saveDatabaseToFile();
-
-    } else {
-        System.err.println("Error: Could not update price. Item not found.");
+        return this.inventory.get(itemCode); 
     }
-}
+
+    /**
+     * Updates the price for a given item and saves the change.
+     * @param itemCode The code of the item to update.
+     * @param newPrice The new sale price.
+     */
+    public void updateItemPrice(String itemCode, double newPrice) {
+        StockItem item = findItem(itemCode);
+        
+        if (item != null) {
+            item.setSalePrice(newPrice);
+            System.out.println("Price updated for " + item.getItemName() + ".");
+            
+            // CRITICAL: We must save the database file after this change.
+            this.saveDatabaseToFile();
+            
+        } else {
+            System.err.println("Error: Could not update price. Item not found.");
+        }
+    }
+    /**
+     * Returns all items in the inventory.
+     * Used by the GUI to display the stock table.
+     */
+    public Iterable<StockItem> getAllItems() {
+        return this.inventory.values();
+    }
+
 }
