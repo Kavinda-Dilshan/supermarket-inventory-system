@@ -1,4 +1,4 @@
-
+//src/com/supermarket/main/LoginManager.java
 package com.supermarket.main;
 import java.util.HashMap;
 

@@ -1,10 +1,12 @@
+//src/com/supermarket/main/SupermarketApp.java
 package com.supermarket.main;
 
 import com.supermarket.model.StockItem;
-import com.supermarket.service.LoginManager; // Required for authentication
 import com.supermarket.service.OrderParser;
 import com.supermarket.service.StockDatabase;
 import java.util.Scanner;
+import java.util.ArrayList; // added for parsed items
+import com.supermarket.model.OrderItem; // added for parsed items
 
 /**
  * The main application class that runs the Supermarket Inventory System.
@@ -22,7 +24,7 @@ public class SupermarketApp {
         LoginManager loginManager = new LoginManager(); 
         
         // Database object is declared here but initialized later
-        StockDatabase database = null; 
+        StockDatabase database;
 
         System.out.println("====================================================");
         System.out.println("   SUPERMARKET INVENTORY SYSTEM - LOGIN REQUIRED    ");
@@ -71,7 +73,7 @@ public class SupermarketApp {
                     System.out.print("Please scan the QR code (paste the data string and press Enter): \n> ");
                     String qrCodeData = scanner.nextLine();
 
-                    var parsedItems = parser.parseOrder(qrCodeData);
+                    ArrayList<OrderItem> parsedItems = parser.parseOrder(qrCodeData);
 
                     if (parsedItems.isEmpty()) {
                         System.err.println("No valid items were parsed from the input.");

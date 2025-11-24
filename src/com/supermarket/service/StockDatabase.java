@@ -1,3 +1,4 @@
+//src/com/supermarket/service/StockDatabase.java
 package com.supermarket.service;
 
 import com.supermarket.exception.ItemNotFoundException;
@@ -8,6 +9,10 @@ import java.io.BufferedWriter;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -88,35 +93,149 @@ public class StockDatabase {
     private void loadDatabaseFromFile() {
         System.out.println("Loading inventory from " + DATABASE_FILE + "...");
         
-        try (BufferedReader reader = new BufferedReader(new FileReader(DATABASE_FILE))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(",");
-                
-                if (parts.length >= 4) {
-                    // Format: Code,Name,Quantity,Price,[Timestamp]
-                    String itemCode = parts[0];
-                    String itemName = parts[1];
-                    int quantity = Integer.parseInt(parts[2]);
-                    double price = Double.parseDouble(parts[3]);
-                    
-                    // Check if there is a 5th column (Timestamp)
-                    String timestamp = "N/A";
-                    if (parts.length == 5) {
-                        timestamp = parts[4];
+        // Determine the file object and print the absolute path for diagnostics
+        File file = new File(DATABASE_FILE);
+        System.out.println("Attempting to read file at: " + file.getAbsolutePath());
+
+        // If the file exists on the filesystem, read it. Otherwise try classpath resource as fallback.
+        if (file.exists() && file.isFile()) {
+            // Read from filesystem
+            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String[] parts = line.split(",");
+
+                    if (parts.length >= 4) {
+                        // Format: Code,Name,Quantity,Price,[Timestamp]
+                        String itemCode = parts[0];
+                        String itemName = parts[1];
+                        int quantity = Integer.parseInt(parts[2]);
+                        double price = Double.parseDouble(parts[3]);
+
+                        // Check if there is a 5th column (Timestamp)
+                        String timestamp = "N/A";
+                        if (parts.length == 5) {
+                            timestamp = parts[4];
+                        }
+
+                        StockItem item = new StockItem(itemCode, itemName, quantity, price, timestamp);
+                        this.inventory.put(itemCode, item); // Add to HashMap
                     }
-                    
-                    StockItem item = new StockItem(itemCode, itemName, quantity, price, timestamp);
-                    this.inventory.put(itemCode, item); // Add to HashMap
                 }
+                System.out.println("Inventory loaded. " + inventory.size() + " items found.");
+                return;
+            } catch (IOException e) {
+                System.err.println("Notice: Could not read " + DATABASE_FILE + " from filesystem despite existence.");
+                e.printStackTrace();
+                return;
+            } catch (NumberFormatException e) {
+                System.err.println("Error: Database file contains malformed data.");
+                return;
             }
-            System.out.println("Inventory loaded. " + inventory.size() + " items found.");
-        } catch (IOException e) {
-            // This happens if the file doesn't exist yet (e.g., first time run)
-            System.err.println("Notice: Could not read " + DATABASE_FILE + ". File may not exist yet.");
-        } catch (NumberFormatException e) {
-            System.err.println("Error: Database file contains malformed data.");
         }
+
+        // Not found at working directory - try searching upward through parent directories
+        try {
+            String userDir = System.getProperty("user.dir");
+            File dir = new File(userDir);
+            int maxLevels = 6; // search up to 6 parent levels
+            for (int i = 0; i < maxLevels && dir != null; i++) {
+                File candidate = new File(dir, DATABASE_FILE);
+                if (candidate.exists() && candidate.isFile()) {
+                    System.out.println("Found " + DATABASE_FILE + " at: " + candidate.getAbsolutePath());
+                    try (BufferedReader reader = new BufferedReader(new FileReader(candidate))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            String[] parts = line.split(",");
+                            if (parts.length >= 4) {
+                                String itemCode = parts[0];
+                                String itemName = parts[1];
+                                int quantity = Integer.parseInt(parts[2]);
+                                double price = Double.parseDouble(parts[3]);
+                                String timestamp = "N/A";
+                                if (parts.length == 5) {
+                                    timestamp = parts[4];
+                                }
+                                StockItem item = new StockItem(itemCode, itemName, quantity, price, timestamp);
+                                this.inventory.put(itemCode, item);
+                            }
+                        }
+                        System.out.println("Inventory loaded from: " + candidate.getAbsolutePath() + ". " + inventory.size() + " items found.");
+                        return;
+                    }
+                }
+
+                // Also check common project subfolder name (e.g., workspace contains a folder with that name)
+                File candidate2 = new File(dir, "SupermarketInventorySystem" + File.separator + DATABASE_FILE);
+                if (candidate2.exists() && candidate2.isFile()) {
+                    System.out.println("Found " + DATABASE_FILE + " at: " + candidate2.getAbsolutePath());
+                    try (BufferedReader reader = new BufferedReader(new FileReader(candidate2))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            String[] parts = line.split(",");
+                            if (parts.length >= 4) {
+                                String itemCode = parts[0];
+                                String itemName = parts[1];
+                                int quantity = Integer.parseInt(parts[2]);
+                                double price = Double.parseDouble(parts[3]);
+                                String timestamp = "N/A";
+                                if (parts.length == 5) {
+                                    timestamp = parts[4];
+                                }
+                                StockItem item = new StockItem(itemCode, itemName, quantity, price, timestamp);
+                                this.inventory.put(itemCode, item);
+                            }
+                        }
+                        System.out.println("Inventory loaded from: " + candidate2.getAbsolutePath() + ". " + inventory.size() + " items found.");
+                        return;
+                    }
+                }
+
+                dir = dir.getParentFile();
+            }
+        } catch (Exception e) {
+            // Non-fatal - continue to other fallbacks
+            System.err.println("Warning while searching for " + DATABASE_FILE + ": " + e.getMessage());
+        }
+
+        // Filesystem file not found - try classpath resource (useful when packaged in JAR)
+        InputStream is = getClass().getClassLoader().getResourceAsStream(DATABASE_FILE);
+        if (is != null) {
+            System.out.println("Found " + DATABASE_FILE + " on the classpath. Loading...");
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String[] parts = line.split(",");
+
+                    if (parts.length >= 4) {
+                        String itemCode = parts[0];
+                        String itemName = parts[1];
+                        int quantity = Integer.parseInt(parts[2]);
+                        double price = Double.parseDouble(parts[3]);
+                        String timestamp = "N/A";
+                        if (parts.length == 5) {
+                            timestamp = parts[4];
+                        }
+                        StockItem item = new StockItem(itemCode, itemName, quantity, price, timestamp);
+                        this.inventory.put(itemCode, item);
+                    }
+                }
+                System.out.println("Inventory loaded from classpath. " + inventory.size() + " items found.");
+                return;
+            } catch (IOException e) {
+                System.err.println("Notice: Could not read " + DATABASE_FILE + " from classpath resource.");
+                e.printStackTrace();
+                return;
+            } catch (NumberFormatException e) {
+                System.err.println("Error: Database resource contains malformed data.");
+                return;
+            }
+        }
+
+        // If we reach here, neither filesystem nor classpath had the file.
+        System.err.println("Notice: Could not read " + DATABASE_FILE + ". File may not exist yet.");
+        System.err.println("Checked path: " + file.getAbsolutePath());
+        System.err.println("Current working directory: " + System.getProperty("user.dir"));
     }
 
     /**
@@ -221,4 +340,12 @@ public class StockDatabase {
             System.err.println("Error: Could not update price. Item not found.");
         }
     }
+    /**
+     * Returns all items in the inventory.
+     * Used by the GUI to display the stock table.
+     */
+    public Iterable<StockItem> getAllItems() {
+        return this.inventory.values();
+    }
+
 }

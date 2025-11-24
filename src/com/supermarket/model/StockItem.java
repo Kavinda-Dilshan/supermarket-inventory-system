@@ -1,3 +1,4 @@
+//src/com/supermarket/model/StockItem.java
 package com.supermarket.model;
 
 import java.time.LocalDateTime;
